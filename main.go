@@ -5,18 +5,18 @@ package main
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
-
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
+	result := add(1, 2)
+	fmt.Printf("addition result: %v\n", result)
 	if err := run(); err != nil {
 		log.Fatalln(err)
 	}
@@ -26,16 +26,6 @@ func run() (err error) {
 	// Handle SIGINT (CTRL+C) gracefully.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-
-	// Set up OpenTelemetry.
-	otelShutdown, err := setupOTelSDK(ctx)
-	if err != nil {
-		return
-	}
-	// Handle shutdown properly so nothing leaks.
-	defer func() {
-		err = errors.Join(err, otelShutdown(context.Background()))
-	}()
 
 	// Start HTTP server.
 	srv := &http.Server{
@@ -66,22 +56,16 @@ func run() (err error) {
 	return
 }
 
-func newHTTPHandler() http.Handler {
+func newHTTPHandler() *http.ServeMux {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/user", user)
+	return mux
+}
 
-	// handleFunc is a replacement for mux.HandleFunc
-	// which enriches the handler's HTTP instrumentation with the pattern as the http.route.
-	handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
-		// Configure the "http.route" for the HTTP instrumentation.
-		handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
-		mux.Handle(pattern, handler)
-	}
+func user(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
 
-	// Register handlers.
-	handleFunc("/rolldice/", rolldice)
-	handleFunc("/rolldice/{player}", rolldice)
-
-	// Add HTTP instrumentation for the whole server.
-	handler := otelhttp.NewHandler(mux, "/")
-	return handler
+func add(x, y int) int {
+	return x + y
 }
