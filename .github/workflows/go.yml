@@ -16,9 +16,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install root certificates
-      run: apt update && apt install -y ca-certificates
-
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
